@@ -124,6 +124,11 @@ class Connection extends Component
     public $loginAttribute = "sAMAccountName";
 
     /**
+     * @var string group DN to check membership when using {@link auth}
+     */
+    public $groupName = false;
+
+    /**
      * @var bool stores the bool whether or not the current connection is bound.
      */
     protected $bound = false;
@@ -216,7 +221,9 @@ class Connection extends Component
     protected function connect($hostname = [], $port = 389)
     {
         if (is_array($hostname)) {
-            $hostname = self::PROTOCOL . implode(' ' . self::PROTOCOL, $hostname);
+            $hostname = self::PROTOCOL . implode(' ' . self::PROTOCOL,
+                    array_map(function($x) use ($port) { return $x . ':'. $port; },
+                        $hostname));
         }
 
         $this->close();
@@ -246,7 +253,9 @@ class Connection extends Component
         $this->open();
 
         # Search for user and get user DN
-        $searchResult = ldap_search($this->resource, $this->baseDn, "(&(objectClass=person)($this->loginAttribute=$username))", [$this->loginAttribute]);
+        $filter_username = ldap_escape($username, "", LDAP_ESCAPE_FILTER);
+        $filter = "(&(objectClass=person)($this->loginAttribute=$username)".($this->groupName ? "(memberOf=$this->groupName)" : "").")";
+        $searchResult = ldap_search($this->resource, $this->baseDn, $filter, [$this->loginAttribute]);
         $entry = $this->getFirstEntry($searchResult);
         if ($entry) {
             $this->userDN = $this->getDn($entry);
